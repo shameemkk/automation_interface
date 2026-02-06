@@ -65,14 +65,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // 3. Update automation_logs with processing_ids returned from RPC
+    // 3. Update automation_logs with processing_ids from RPC (also set as pending_ids)
     const processingIds = Array.isArray(rpcData)
       ? rpcData
       : (rpcData as { processing_ids?: number[] } | null)?.processing_ids;
+    
     if (processingIds != null && Array.isArray(processingIds)) {
       await supabaseAdmin
         .from("automation_logs")
-        .update({ processing_ids: processingIds })
+        .update({
+          processing_ids: processingIds,
+          pending_ids: processingIds, // pending_ids is same as processing_ids
+        })
         .eq("id", automationId);
     }
 

@@ -79,7 +79,7 @@ export function AutomationPanel() {
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Created</th>
                   <th className="px-4 py-3 font-medium">Drive file</th>
-                  <th className="px-4 py-3 font-medium">Processed / Pending</th>
+                  <th className="px-4 py-3 font-medium">Total / Pending</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">

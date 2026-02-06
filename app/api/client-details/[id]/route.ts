@@ -62,7 +62,20 @@ export async function PATCH(
 
     if (client_tag !== undefined) payload.client_tag = String(client_tag).trim();
     if (locations !== undefined) payload.locations = locations == null ? null : String(locations).trim();
-    if (zip_codes !== undefined) payload.zip_codes = zip_codes == null ? null : String(zip_codes).trim();
+    if (zip_codes !== undefined) {
+      payload.zip_codes =
+        zip_codes == null
+          ? null
+          : Array.isArray(zip_codes)
+            ? zip_codes.map((z: unknown) => String(z).trim()).filter(Boolean)
+            : String(zip_codes)
+                .trim()
+                .split(",")
+                .map((z) => z.trim())
+                .filter(Boolean);
+      if (Array.isArray(payload.zip_codes) && (payload.zip_codes as unknown[]).length === 0)
+        payload.zip_codes = null;
+    }
     if (drive_url !== undefined) payload.drive_url = drive_url == null ? null : String(drive_url).trim();
     if (automation_mode !== undefined) {
       if (!["fully_auto", "semi_auto"].includes(automation_mode)) {

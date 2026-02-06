@@ -55,15 +55,42 @@ export async function POST(request: Request) {
       );
     }
 
-    const payload = {
+    // zip_codes is text[] in DB: send as string array (comma-separated input → array)
+    const zipCodesArray =
+      zip_codes == null
+        ? null
+        : Array.isArray(zip_codes)
+          ? zip_codes.map((z: unknown) => String(z).trim()).filter(Boolean)
+          : String(zip_codes)
+              .trim()
+              .split(",")
+              .map((z) => z.trim())
+              .filter(Boolean);
+
+    const payload: Record<string, unknown> = {
       client_tag: String(client_tag).trim(),
-      locations: locations != null ? String(locations).trim() : null,
-      zip_codes: zip_codes != null ? String(zip_codes).trim() : null,
+      zip_codes: zipCodesArray?.length ? zipCodesArray : null,
       drive_url: drive_url != null ? String(drive_url).trim() : null,
       automation_mode,
       process_automations: Boolean(process_automations),
-      updated_at: new Date().toISOString(),
     };
+
+    // Locations: add-only, from CSV. Store as [[format, latitude, longitude], ...] to match DB jsonb[]
+    if (locations != null && Array.isArray(locations) && locations.length > 0) {
+      payload.locations = locations.map((loc: unknown) => {
+        if (Array.isArray(loc) && loc.length >= 3) {
+          return [String(loc[0]), String(loc[1]), String(loc[2])];
+        }
+        if (loc && typeof loc === "object" && "format" in loc && "latitude" in loc && "longitude" in loc) {
+          return [
+            String((loc as { format: unknown }).format),
+            String((loc as { latitude: unknown }).latitude),
+            String((loc as { longitude: unknown }).longitude),
+          ];
+        }
+        return null;
+      }).filter(Boolean);
+    }
 
     const { data, error } = await supabaseAdmin
       .from("client_details")

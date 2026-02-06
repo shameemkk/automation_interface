@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export type ClientDetail = {
   id: number;
   client_tag: string;
   locations: string | null;
-  zip_codes: string | null;
+  zip_codes: string | string[] | null;
   drive_url: string | null;
   automation_mode: "fully_auto" | "semi_auto";
   process_automations: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 };
 
 const emptyForm = {
@@ -24,10 +24,93 @@ const emptyForm = {
 
 const ZIP_DISPLAY_MAX = 20;
 
-function truncateZip(zip: string | null): string {
-  if (!zip) return "—";
-  if (zip.length <= ZIP_DISPLAY_MAX) return zip;
-  return zip.slice(0, ZIP_DISPLAY_MAX) + "...";
+/** Parse CSV with headers Format, Latitude, Longitude, Zip Code. Returns { locations, zipCodes } */
+function parseLocationsFromCSV(csvText: string): {
+  locations: [string, string, string][];
+  zipCodes: string[];
+} {
+  const rows = parseCSVRows(csvText);
+  if (rows.length < 2) return { locations: [], zipCodes: [] };
+  const headers = rows[0];
+  const formatIdx = headers.findIndex((h) => h.trim() === "Format");
+  const latIdx = headers.findIndex((h) => h.trim() === "Latitude");
+  const lngIdx = headers.findIndex((h) => h.trim() === "Longitude");
+  const zipIdx = headers.findIndex((h) => h.trim() === "Zip Code");
+  if (formatIdx === -1 || latIdx === -1 || lngIdx === -1) return { locations: [], zipCodes: [] };
+  
+  const locations: [string, string, string][] = [];
+  const zipCodes: string[] = [];
+  
+  for (let i = 1; i < rows.length; i++) {
+    const cols = rows[i];
+    const format = cols[formatIdx]?.replace(/\n/g, "").trim();
+    const lat = cols[latIdx]?.toString().trim();
+    const lng = cols[lngIdx]?.toString().trim();
+    const zip = zipIdx !== -1 ? cols[zipIdx]?.trim() : "";
+    
+    if (!format || !lat || !lng) continue;
+    locations.push([format, lat, lng]);
+    if (zip) zipCodes.push(zip);
+  }
+  
+  return { locations, zipCodes };
+}
+
+/** Parse entire CSV into rows, handling quoted fields with newlines */
+function parseCSVRows(csvText: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = "";
+  let inQuotes = false;
+  
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
+    
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote
+        currentField += '"';
+        i++; // skip next quote
+      } else {
+        // Toggle quote state
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // End of field
+      currentRow.push(currentField);
+      currentField = "";
+    } else if ((char === '\n' || (char === '\r' && nextChar === '\n')) && !inQuotes) {
+      // End of row
+      if (char === '\r') i++; // skip \n in \r\n
+      currentRow.push(currentField);
+      if (currentRow.length > 0 && currentRow.some(f => f.trim())) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentField = "";
+    } else {
+      currentField += char;
+    }
+  }
+  
+  // Handle last field and row
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField);
+    if (currentRow.some(f => f.trim())) {
+      rows.push(currentRow);
+    }
+  }
+  
+  return rows;
+}
+
+
+function truncateZip(zip: string | string[] | null): string {
+  const str = Array.isArray(zip) ? zip.join(", ") : zip;
+  if (!str) return "—";
+  if (str.length <= ZIP_DISPLAY_MAX) return str;
+  return str.slice(0, ZIP_DISPLAY_MAX) + "...";
 }
 
 function EditClientModal({
@@ -41,7 +124,7 @@ function EditClientModal({
 }) {
   const [form, setForm] = useState({
     client_tag: client.client_tag,
-    zip_codes: client.zip_codes ?? "",
+    zip_codes: Array.isArray(client.zip_codes) ? client.zip_codes.join(", ") : (client.zip_codes ?? ""),
     drive_url: client.drive_url ?? "",
     automation_mode: client.automation_mode,
     process_automations: client.process_automations,
@@ -259,26 +342,54 @@ export function ClientDetailsList() {
   );
 }
 
+const CSV_HEADERS = "Format, Latitude, Longitude, Zip Code";
+
 function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void }) {
   const [form, setForm] = useState(emptyForm);
+  const [locations, setLocations] = useState<[string, string, string][]>([]);
   const [submitError, setSubmitError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [csvFormatOpen, setCsvFormatOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleCSVFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      const { locations: parsedLocations, zipCodes } = parseLocationsFromCSV(text);
+      setLocations(parsedLocations);
+      // Auto-populate zip_codes field with unique zip codes from CSV
+      if (zipCodes.length > 0) {
+        const uniqueZips = Array.from(new Set(zipCodes));
+        setForm((f) => ({ ...f, zip_codes: uniqueZips.join(", ") }));
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError("");
     setLoading(true);
     try {
+      const body: Record<string, unknown> = {
+        client_tag: form.client_tag,
+        zip_codes: form.zip_codes || null,
+        drive_url: form.drive_url || null,
+        automation_mode: form.automation_mode,
+        process_automations: form.process_automations,
+      };
+      if (locations.length > 0) {
+        // Send as [[format, latitude, longitude], ...] matching DB jsonb[] format
+        body.locations = locations;
+      }
       const res = await fetch("/api/client-details", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_tag: form.client_tag,
-          zip_codes: form.zip_codes || null,
-          drive_url: form.drive_url || null,
-          automation_mode: form.automation_mode,
-          process_automations: form.process_automations,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -287,6 +398,7 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
       }
       onAdded(data.client);
       setForm(emptyForm);
+      setLocations([]);
     } catch {
       setSubmitError("An error occurred.");
     } finally {
@@ -303,6 +415,75 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+              Locations (CSV, add only)
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleCSVFile}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => setCsvFormatOpen(true)}
+              className="rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
+            >
+              Choose file
+            </button>
+            {locations.length > 0 && (
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Loaded {locations.length} location(s)
+                {form.zip_codes ? ` and ${form.zip_codes.split(",").length} zip code(s)` : ""} from CSV.
+              </p>
+            )}
+            {csvFormatOpen && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+                onClick={() => setCsvFormatOpen(false)}
+              >
+                <div
+                  className="w-full max-w-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-6"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h4 className="text-base font-medium text-zinc-900 dark:text-zinc-50 mb-2">
+                    CSV header format
+                  </h4>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-3">
+                    Your CSV must have these column headers (exact names):
+                  </p>
+                  <code className="block rounded-lg bg-zinc-100 dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 mb-4 font-mono">
+                    {CSV_HEADERS}
+                  </code>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
+                    Required columns: Format, Latitude, Longitude, Zip Code.<br />
+                    Rows missing any required column are skipped.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCsvFormatOpen(false);
+                        fileInputRef.current?.click();
+                      }}
+                      className="rounded-lg bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 px-4 py-2 text-sm font-medium"
+                    >
+                      Choose file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCsvFormatOpen(false)}
+                      className="rounded-lg border border-zinc-300 dark:border-zinc-600 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
               Client tag *
             </label>
             <input
@@ -312,18 +493,6 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
               placeholder="e.g. ACME-01"
               required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-              Zip codes
-            </label>
-            <input
-              type="text"
-              value={form.zip_codes}
-              onChange={(e) => setForm((f) => ({ ...f, zip_codes: e.target.value }))}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
-              placeholder="e.g. 10001, 10002"
             />
           </div>
           <div className="sm:col-span-2">
@@ -424,7 +593,7 @@ function ClientRow({
           <p className="font-medium text-zinc-900 dark:text-zinc-50">
             {client.client_tag}
           </p>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-xs" title={client.zip_codes ?? undefined}>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-xs" title={Array.isArray(client.zip_codes) ? client.zip_codes.join(", ") : (client.zip_codes ?? undefined)}>
             {truncateZip(client.zip_codes)}
           </p>
         {client.drive_url && (

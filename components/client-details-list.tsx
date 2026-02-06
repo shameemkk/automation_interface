@@ -491,7 +491,7 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
               value={form.client_tag}
               onChange={(e) => setForm((f) => ({ ...f, client_tag: e.target.value }))}
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
-              placeholder="e.g. ACME-01"
+              placeholder="e.g. [Client tag]"
               required
             />
           </div>

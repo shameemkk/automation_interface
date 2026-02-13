@@ -23,6 +23,7 @@ export function AutomationPanel() {
   const [error, setError] = useState("");
   const [triggerModalOpen, setTriggerModalOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [statusModalId, setStatusModalId] = useState<number | null>(null);
 
   async function fetchLogs() {
     try {
@@ -79,7 +80,7 @@ export function AutomationPanel() {
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Created</th>
                   <th className="px-4 py-3 font-medium">Drive file</th>
-                  <th className="px-4 py-3 font-medium">Total / Pending</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -114,9 +115,14 @@ export function AutomationPanel() {
                         "—"
                       )}
                     </td>
-                    <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400">
-                      {log.processing_ids?.length ?? 0} /{" "}
-                      {log.pending_ids?.length ?? 0}
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => setStatusModalId(log.id)}
+                        className="rounded-lg bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 px-3 py-1.5 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200"
+                      >
+                        View
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -125,6 +131,13 @@ export function AutomationPanel() {
           </div>
         )}
       </div>
+
+      {statusModalId != null && (
+        <StatusModal
+          automationId={statusModalId}
+          onClose={() => setStatusModalId(null)}
+        />
+      )}
 
       {triggerModalOpen && (
         <ManualTriggerModal
@@ -141,6 +154,124 @@ export function AutomationPanel() {
           confirmOpen={confirmOpen}
         />
       )}
+    </div>
+  );
+}
+
+type StatusData = {
+  g_map: { total: number; pending: number };
+  query_results: { total: number; pending: number };
+  email_scraper: { total: number; pending: number };
+};
+
+function StatusModal({
+  automationId,
+  onClose,
+}: {
+  automationId: number;
+  onClose: () => void;
+}) {
+  const [data, setData] = useState<StatusData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function fetchStatus() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/automation-status/${automationId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      const json = await res.json();
+      setData(json);
+    } catch {
+      setError("Failed to load status.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchStatus();
+  }, [automationId]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
+            Automation Status (ID: {automationId})
+          </h3>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                fetchStatus();
+              }}
+              disabled={loading}
+              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+              aria-label="Refresh"
+              title="Refresh"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm">Loading...</p>
+        ) : error ? (
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        ) : data ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+              <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-50 mb-2">
+                G Map (client_queries)
+              </h4>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Total: <span className="font-medium">{data.g_map.total}</span> / Pending:{" "}
+                <span className="font-medium">{data.g_map.pending}</span>
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+              <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-50 mb-2">
+                Query Results (client_query_results)
+              </h4>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Total: <span className="font-medium">{data.query_results.total}</span> / Pending:{" "}
+                <span className="font-medium">{data.query_results.pending}</span>
+              </p>
+            </div>
+            <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+              <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-50 mb-2">
+                Email Scraper (email_scraper_node)
+              </h4>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Total: <span className="font-medium">{data.email_scraper.total}</span> / Pending:{" "}
+                <span className="font-medium">{data.email_scraper.pending}</span>
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

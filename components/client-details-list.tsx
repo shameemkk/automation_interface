@@ -640,7 +640,7 @@ function ClientRow({
           </a>
         )}
         <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-          {client.automation_mode.replace("_", " ")} · Process automations:{" "}
+          {(client.automation_mode ?? "").replace("_", " ")} · Process automations:{" "}
           {client.process_automations ? "Yes" : "No"}
         </p>
       </div>

@@ -36,6 +36,7 @@ export async function POST(request: Request) {
       client_tag,
       locations,
       zip_codes,
+      zip_codes_format,
       drive_url,
       automation_mode,
       process_automations,
@@ -67,9 +68,22 @@ export async function POST(request: Request) {
               .map((z) => z.trim())
               .filter(Boolean);
 
+    // zip_codes_format is text[] in DB: comma-separated input → array
+    const zipCodesFormatArray =
+      zip_codes_format == null
+        ? null
+        : Array.isArray(zip_codes_format)
+          ? zip_codes_format.map((z: unknown) => String(z).trim()).filter(Boolean)
+          : String(zip_codes_format)
+              .trim()
+              .split(",")
+              .map((z) => z.trim())
+              .filter(Boolean);
+
     const payload: Record<string, unknown> = {
       client_tag: String(client_tag).trim(),
       zip_codes: zipCodesArray?.length ? zipCodesArray : null,
+      zip_codes_format: zipCodesFormatArray?.length ? zipCodesFormatArray : null,
       drive_url: drive_url != null ? String(drive_url).trim() : null,
       automation_mode,
       process_automations: Boolean(process_automations),

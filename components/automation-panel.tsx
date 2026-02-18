@@ -17,20 +17,32 @@ type ClientOption = {
   client_tag: string;
 };
 
+type PaginationInfo = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+};
+
 export function AutomationPanel() {
   const [logs, setLogs] = useState<AutomationLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [triggerModalOpen, setTriggerModalOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [statusModalId, setStatusModalId] = useState<number | null>(null);
 
-  async function fetchLogs() {
+  async function fetchLogs(p: number = page) {
     try {
-      const res = await fetch("/api/automation-logs");
+      const res = await fetch(`/api/automation-logs?page=${p}`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
       setLogs(data.logs ?? []);
+      setPagination(data.pagination ?? null);
       setError("");
     } catch {
       setError("Failed to load automation history.");
@@ -40,8 +52,9 @@ export function AutomationPanel() {
   }
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
+    setLoading(true);
+    fetchLogs(page);
+  }, [page]);
 
   return (
     <div className="space-y-6">
@@ -71,7 +84,8 @@ export function AutomationPanel() {
             No automation runs yet.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
+          <div className="space-y-3">
+            <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
             <table className="w-full text-sm text-left">
               <thead className="bg-zinc-100 dark:bg-zinc-800/50 text-zinc-600 dark:text-zinc-400">
                 <tr>
@@ -128,6 +142,34 @@ export function AutomationPanel() {
                 ))}
               </tbody>
             </table>
+            </div>
+            {pagination && pagination.total > 0 && (
+              <div className="flex items-center justify-between gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+                <span>
+                  Page {pagination.page} of {pagination.totalPages}
+                  {" · "}
+                  {pagination.total} total
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={!pagination.hasPrev}
+                    className="rounded-lg border border-zinc-300 dark:border-zinc-600 px-3 py-1.5 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                    disabled={!pagination.hasNext}
+                    className="rounded-lg border border-zinc-300 dark:border-zinc-600 px-3 py-1.5 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -149,7 +191,9 @@ export function AutomationPanel() {
           onSuccess={() => {
             setTriggerModalOpen(false);
             setConfirmOpen(false);
-            fetchLogs();
+            setPage(1);
+            setLoading(true);
+            fetchLogs(1);
           }}
           confirmOpen={confirmOpen}
         />

@@ -7,6 +7,6 @@ export default async function Home() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  if (session.role === "admin") redirect("/dashboard");
+  if (session.role === "admin") redirect("/dashboard/automation-history");
   redirect("/dashboard/user");
 }

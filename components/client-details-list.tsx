@@ -7,6 +7,7 @@ export type ClientDetail = {
   client_tag: string;
   locations: string | null;
   zip_codes: string | string[] | null;
+  zip_codes_format: string | string[] | null;
   drive_url: string | null;
   automation_mode: "fully_auto" | "semi_auto";
   process_automations: boolean;
@@ -17,9 +18,10 @@ export type ClientDetail = {
 const emptyForm = {
   client_tag: "",
   zip_codes: "",
+  zip_codes_format: "",
   drive_url: "",
   automation_mode: "fully_auto" as "fully_auto" | "semi_auto",
-  process_automations: false,
+  process_automations: true,
 };
 
 const ZIP_DISPLAY_MAX = 20;
@@ -125,6 +127,7 @@ function EditClientModal({
   const [form, setForm] = useState({
     client_tag: client.client_tag,
     zip_codes: Array.isArray(client.zip_codes) ? client.zip_codes.join(", ") : (client.zip_codes ?? ""),
+    zip_codes_format: Array.isArray(client.zip_codes_format) ? client.zip_codes_format.join(", ") : (client.zip_codes_format ?? ""),
     drive_url: client.drive_url ?? "",
     automation_mode: client.automation_mode,
     process_automations: client.process_automations,
@@ -143,6 +146,7 @@ function EditClientModal({
         body: JSON.stringify({
           client_tag: form.client_tag,
           zip_codes: form.zip_codes || null,
+          zip_codes_format: form.zip_codes_format || null,
           drive_url: form.drive_url || null,
           automation_mode: form.automation_mode,
           process_automations: form.process_automations,
@@ -191,7 +195,7 @@ function EditClientModal({
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Client tag *</label>
             <input
               type="text"
-              value={form.client_tag}
+              value={form.client_tag ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, client_tag: e.target.value }))}
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
               required
@@ -201,16 +205,27 @@ function EditClientModal({
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Zip codes</label>
             <input
               type="text"
-              value={form.zip_codes}
+              value={form.zip_codes ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, zip_codes: e.target.value }))}
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
+              placeholder="Comma-separated"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Zip codes format</label>
+            <input
+              type="text"
+              value={form.zip_codes_format ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, zip_codes_format: e.target.value }))}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
+              placeholder="Comma-separated"
             />
           </div>
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Drive URL</label>
             <input
               type="url"
-              value={form.drive_url}
+              value={form.drive_url ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, drive_url: e.target.value }))}
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
             />
@@ -218,7 +233,7 @@ function EditClientModal({
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Automation mode *</label>
             <select
-              value={form.automation_mode}
+              value={form.automation_mode ?? "fully_auto"}
               onChange={(e) =>
                 setForm((f) => ({
                   ...f,
@@ -234,7 +249,7 @@ function EditClientModal({
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={form.process_automations}
+              checked={form.process_automations === true}
               onChange={(e) =>
                 setForm((f) => ({ ...f, process_automations: e.target.checked }))
               }
@@ -378,6 +393,7 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
       const body: Record<string, unknown> = {
         client_tag: form.client_tag,
         zip_codes: form.zip_codes || null,
+        zip_codes_format: form.zip_codes_format || null,
         drive_url: form.drive_url || null,
         automation_mode: form.automation_mode,
         process_automations: form.process_automations,
@@ -488,11 +504,23 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
             </label>
             <input
               type="text"
-              value={form.client_tag}
+              value={form.client_tag ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, client_tag: e.target.value }))}
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
               placeholder="e.g. [Client tag]"
               required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+              Zip codes format
+            </label>
+            <input
+              type="text"
+              value={form.zip_codes_format ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, zip_codes_format: e.target.value }))}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
+              placeholder="Comma-separated"
             />
           </div>
           <div className="sm:col-span-2">
@@ -501,7 +529,7 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
             </label>
             <input
               type="url"
-              value={form.drive_url}
+              value={form.drive_url ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, drive_url: e.target.value }))}
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
               placeholder="https://drive.google.com/..."
@@ -512,7 +540,7 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
               Automation mode *
             </label>
             <select
-              value={form.automation_mode}
+              value={form.automation_mode ?? "fully_auto"}
               onChange={(e) =>
                 setForm((f) => ({
                   ...f,
@@ -530,7 +558,7 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={form.process_automations}
+                checked={form.process_automations === true}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, process_automations: e.target.checked }))
                 }
@@ -596,6 +624,11 @@ function ClientRow({
           <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-xs" title={Array.isArray(client.zip_codes) ? client.zip_codes.join(", ") : (client.zip_codes ?? undefined)}>
             {truncateZip(client.zip_codes)}
           </p>
+          {client.zip_codes_format != null && (Array.isArray(client.zip_codes_format) ? client.zip_codes_format.length > 0 : String(client.zip_codes_format).trim() !== "") && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-xs" title={Array.isArray(client.zip_codes_format) ? client.zip_codes_format.join(", ") : (client.zip_codes_format ?? undefined)}>
+              Format: {truncateZip(client.zip_codes_format)}
+            </p>
+          )}
         {client.drive_url && (
           <a
             href={client.drive_url}

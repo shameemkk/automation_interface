@@ -51,6 +51,7 @@ export async function PATCH(
       client_tag,
       locations,
       zip_codes,
+      zip_codes_format,
       drive_url,
       automation_mode,
       process_automations,
@@ -75,6 +76,20 @@ export async function PATCH(
                 .filter(Boolean);
       if (Array.isArray(payload.zip_codes) && (payload.zip_codes as unknown[]).length === 0)
         payload.zip_codes = null;
+    }
+    if (zip_codes_format !== undefined) {
+      payload.zip_codes_format =
+        zip_codes_format == null
+          ? null
+          : Array.isArray(zip_codes_format)
+            ? zip_codes_format.map((z: unknown) => String(z).trim()).filter(Boolean)
+            : String(zip_codes_format)
+                .trim()
+                .split(",")
+                .map((z) => z.trim())
+                .filter(Boolean);
+      if (Array.isArray(payload.zip_codes_format) && (payload.zip_codes_format as unknown[]).length === 0)
+        payload.zip_codes_format = null;
     }
     if (drive_url !== undefined) payload.drive_url = drive_url == null ? null : String(drive_url).trim();
     if (automation_mode !== undefined) {

@@ -30,7 +30,7 @@ export default function LoginPage() {
       }
 
       const role = data.role as "admin" | "user" | undefined;
-      router.push(role === "admin" ? "/dashboard" : "/dashboard/user");
+      router.push(role === "admin" ? "/dashboard/automation-history" : "/dashboard/user");
       router.refresh();
     } catch {
       setError("An error occurred. Please try again.");

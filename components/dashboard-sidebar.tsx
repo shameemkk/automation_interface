@@ -9,7 +9,7 @@ const navItems = [
   { href: "/dashboard/client-details", label: "Client details" },
 ] as const;
 
-const adminNavItem = { href: "/dashboard", label: "Users" } as const;
+const adminNavItem = { href: "/dashboard/users", label: "Users" } as const;
 
 function NavLink({
   href,
@@ -51,13 +51,6 @@ export function DashboardSidebar({
         </h2>
       </div>
       <nav className="flex-1 p-3 space-y-0.5">
-        {role === "admin" && (
-          <NavLink
-            href={adminNavItem.href}
-            label={adminNavItem.label}
-            active={pathname === "/dashboard"}
-          />
-        )}
         {navItems.map((item) => (
           <NavLink
             key={item.href}
@@ -66,6 +59,13 @@ export function DashboardSidebar({
             active={pathname === item.href}
           />
         ))}
+        {role === "admin" && (
+          <NavLink
+            href={adminNavItem.href}
+            label={adminNavItem.label}
+            active={pathname === "/dashboard/users"}
+          />
+        )}
       </nav>
       <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 space-y-2">
         <p className="px-3 text-xs text-zinc-500 dark:text-zinc-400 truncate">

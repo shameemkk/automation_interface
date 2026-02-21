@@ -38,20 +38,12 @@ export async function POST(request: Request) {
       zip_codes,
       zip_codes_format,
       drive_url,
-      automation_mode,
       process_automations,
     } = body;
 
-    if (!client_tag || !automation_mode) {
+    if (!client_tag) {
       return NextResponse.json(
-        { error: "client_tag and automation_mode are required" },
-        { status: 400 }
-      );
-    }
-
-    if (!["fully_auto", "semi_auto"].includes(automation_mode)) {
-      return NextResponse.json(
-        { error: "automation_mode must be fully_auto or semi_auto" },
+        { error: "client_tag is required" },
         { status: 400 }
       );
     }
@@ -85,7 +77,6 @@ export async function POST(request: Request) {
       zip_codes: zipCodesArray?.length ? zipCodesArray : null,
       zip_codes_format: zipCodesFormatArray?.length ? zipCodesFormatArray : null,
       drive_url: drive_url != null ? String(drive_url).trim() : null,
-      automation_mode,
       process_automations: Boolean(process_automations),
     };
 

@@ -53,13 +53,10 @@ export async function PATCH(
       zip_codes,
       zip_codes_format,
       drive_url,
-      automation_mode,
       process_automations,
     } = body;
 
-    const payload: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    };
+    const payload: Record<string, unknown> = {};
 
     if (client_tag !== undefined) payload.client_tag = String(client_tag).trim();
     if (locations !== undefined) payload.locations = locations == null ? null : String(locations).trim();
@@ -92,16 +89,8 @@ export async function PATCH(
         payload.zip_codes_format = null;
     }
     if (drive_url !== undefined) payload.drive_url = drive_url == null ? null : String(drive_url).trim();
-    if (automation_mode !== undefined) {
-      if (!["fully_auto", "semi_auto"].includes(automation_mode)) {
-        return NextResponse.json(
-          { error: "automation_mode must be fully_auto or semi_auto" },
-          { status: 400 }
-        );
-      }
-      payload.automation_mode = automation_mode;
-    }
     if (process_automations !== undefined) payload.process_automations = Boolean(process_automations);
+    if (body.query_created !== undefined) payload.query_created = Boolean(body.query_created);
 
     const { data, error } = await supabaseAdmin
       .from("client_details")

@@ -9,10 +9,9 @@ export type ClientDetail = {
   zip_codes: string | string[] | null;
   zip_codes_format: string | string[] | null;
   drive_url: string | null;
-  automation_mode: "fully_auto" | "semi_auto";
   process_automations: boolean;
+  query_created: boolean;
   created_at: string;
-  updated_at?: string;
 };
 
 const emptyForm = {
@@ -20,7 +19,6 @@ const emptyForm = {
   zip_codes: "",
   zip_codes_format: "",
   drive_url: "",
-  automation_mode: "fully_auto" as "fully_auto" | "semi_auto",
   process_automations: true,
 };
 
@@ -129,7 +127,6 @@ function EditClientModal({
     zip_codes: Array.isArray(client.zip_codes) ? client.zip_codes.join(", ") : (client.zip_codes ?? ""),
     zip_codes_format: Array.isArray(client.zip_codes_format) ? client.zip_codes_format.join(", ") : (client.zip_codes_format ?? ""),
     drive_url: client.drive_url ?? "",
-    automation_mode: client.automation_mode,
     process_automations: client.process_automations,
   });
   const [loading, setLoading] = useState(false);
@@ -148,7 +145,6 @@ function EditClientModal({
           zip_codes: form.zip_codes || null,
           zip_codes_format: form.zip_codes_format || null,
           drive_url: form.drive_url || null,
-          automation_mode: form.automation_mode,
           process_automations: form.process_automations,
         }),
       });
@@ -229,22 +225,6 @@ function EditClientModal({
               onChange={(e) => setForm((f) => ({ ...f, drive_url: e.target.value }))}
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
             />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Automation mode *</label>
-            <select
-              value={form.automation_mode ?? "fully_auto"}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  automation_mode: e.target.value as "fully_auto" | "semi_auto",
-                }))
-              }
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
-            >
-              <option value="fully_auto">Fully auto</option>
-              <option value="semi_auto">Semi auto</option>
-            </select>
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -395,7 +375,6 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
         zip_codes: form.zip_codes || null,
         zip_codes_format: form.zip_codes_format || null,
         drive_url: form.drive_url || null,
-        automation_mode: form.automation_mode,
         process_automations: form.process_automations,
       };
       if (locations.length > 0) {
@@ -535,25 +514,6 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
               placeholder="https://drive.google.com/..."
             />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-              Automation mode *
-            </label>
-            <select
-              value={form.automation_mode ?? "fully_auto"}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  automation_mode: e.target.value as "fully_auto" | "semi_auto",
-                }))
-              }
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
-              required
-            >
-              <option value="fully_auto">Fully auto</option>
-              <option value="semi_auto">Semi auto</option>
-            </select>
-          </div>
           <div className="flex items-end">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -640,8 +600,11 @@ function ClientRow({
           </a>
         )}
         <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-          {(client.automation_mode ?? "").replace("_", " ")} · Process automations:{" "}
-          {client.process_automations ? "Yes" : "No"}
+          Process automations:{" "}
+          {client.process_automations ? "Yes" : "No"} ·{" "}
+          <span className={client.query_created ? "text-green-600 dark:text-green-400" : "text-zinc-400 dark:text-zinc-500"}>
+            Query created: {client.query_created ? "Yes" : "No"}
+          </span>
         </p>
       </div>
       <div className="flex gap-2 shrink-0">

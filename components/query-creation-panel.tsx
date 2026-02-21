@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 type ClientOption = {
   id: number;
   client_tag: string;
+  query_created: boolean;
 };
 
 type BatchProgress = {
@@ -37,12 +38,13 @@ export function QueryCreationPanel() {
         const res = await fetch("/api/client-details");
         if (!res.ok) throw new Error("Failed");
         const data = await res.json();
-        const list = (data.clients ?? []).map(
-          (c: { id: number; client_tag: string }) => ({
+        const list = (data.clients ?? [])
+          .filter((c: { query_created?: boolean }) => !c.query_created)
+          .map((c: { id: number; client_tag: string; query_created?: boolean }) => ({
             id: c.id,
             client_tag: c.client_tag ?? "",
-          })
-        );
+            query_created: c.query_created ?? false,
+          }));
         setClients(list);
       } catch {
         setError("Failed to load clients.");
@@ -166,9 +168,16 @@ export function QueryCreationPanel() {
         );
       }
 
+      await fetch(`/api/client-details/${selectedClient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query_created: true }),
+      });
+
       setProgress((prev) =>
         prev ? { ...prev, status: "done" } : null
       );
+      setClients((prev) => prev.filter((c) => c.id !== selectedClient.id));
       setRegion("");
       setSelectedClient(null);
       setSearch("");

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error, count } = await supabaseAdmin
     .from("automation_logs")
-    .select("id, client_tag, processing_ids, pending_ids, status, created_at, drive_file", {
+    .select("id, client_tag, status, created_at, drive_file", {
       count: "exact",
     })
     .order("created_at", { ascending: false })

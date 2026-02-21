@@ -3,6 +3,26 @@ import { getSession } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { BUSINESS_CATEGORIES } from "@/lib/business-categories";
 
+const BATCH_SIZE = 200_000;
+
+function buildAllQueries(
+  locations: unknown[],
+  businessCategories: string[]
+): { query: string; latitude: string | null; longitude: string | null }[] {
+  const queries: { query: string; latitude: string | null; longitude: string | null }[] = [];
+  for (const category of businessCategories) {
+    for (const location of locations) {
+      const locationStr = Array.isArray(location) ? location[0] : location;
+      const latitude =
+        Array.isArray(location) && location[1] ? location[1] : null;
+      const longitude =
+        Array.isArray(location) && location[2] ? location[2] : null;
+      queries.push({ query: `${category}, ${locationStr}`, latitude, longitude });
+    }
+  }
+  return queries;
+}
+
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) {
@@ -11,7 +31,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { client_tag, region } = body;
+    const { client_tag, region, batch } = body;
 
     if (!client_tag || typeof client_tag !== "string" || !client_tag.trim()) {
       return NextResponse.json(
@@ -53,29 +73,38 @@ export async function POST(request: Request) {
 
     const locations = data.locations;
     const businessCategories = BUSINESS_CATEGORIES;
+    const allQueries = buildAllQueries(locations, businessCategories);
+    const totalQueries = allQueries.length;
+    const totalBatches = Math.ceil(totalQueries / BATCH_SIZE);
 
-    const queries: { query: string; latitude: string | null; longitude: string | null }[] = [];
-
-    for (const category of businessCategories) {
-      for (const location of locations) {
-        const locationStr = Array.isArray(location) ? location[0] : location;
-        const latitude =
-          Array.isArray(location) && location[1] ? location[1] : null;
-        const longitude =
-          Array.isArray(location) && location[2] ? location[2] : null;
-
-        const query = `${category}, ${locationStr}`;
-        queries.push({
-          query,
-          latitude,
-          longitude,
-        });
-      }
+    if (batch == null) {
+      return NextResponse.json({
+        mode: "info",
+        client_tag: clientTag,
+        region: regionVal,
+        locations_count: locations.length,
+        categories_count: businessCategories.length,
+        total_queries: totalQueries,
+        batch_size: BATCH_SIZE,
+        total_batches: totalBatches,
+      });
     }
 
-    const queryStrings = queries.map((q) => q.query);
-    const latitudes = queries.map((q) => q.latitude);
-    const longitudes = queries.map((q) => q.longitude);
+    const batchIndex = Number(batch);
+    if (isNaN(batchIndex) || batchIndex < 0 || batchIndex >= totalBatches) {
+      return NextResponse.json(
+        { error: `Invalid batch index. Must be 0–${totalBatches - 1}` },
+        { status: 400 }
+      );
+    }
+
+    const start = batchIndex * BATCH_SIZE;
+    const end = Math.min(start + BATCH_SIZE, totalQueries);
+    const batchQueries = allQueries.slice(start, end);
+
+    const queryStrings = batchQueries.map((q) => q.query);
+    const latitudes = batchQueries.map((q) => q.latitude);
+    const longitudes = batchQueries.map((q) => q.longitude);
 
     const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
       "bulk_insert_client_queries",
@@ -107,17 +136,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const inserted = (rpcData as { inserted_count?: number })?.inserted_count ?? queries.length;
+    const inserted = (rpcData as { inserted_count?: number })?.inserted_count ?? batchQueries.length;
 
     return NextResponse.json({
+      mode: "batch",
       success: true,
       client_tag: clientTag,
       region: regionVal,
+      batch: batchIndex,
+      total_batches: totalBatches,
+      batch_queries: batchQueries.length,
+      inserted_count: inserted,
+      total_queries: totalQueries,
       locations_count: locations.length,
       categories_count: businessCategories.length,
-      total_queries: queries.length,
-      inserted_count: inserted,
-      message: "All queries have been inserted into client_queries table",
     });
   } catch (err) {
     console.error("Error:", err);

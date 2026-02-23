@@ -18,41 +18,21 @@ export async function GET(
   }
 
   try {
-    // g_map: client_queries
-    const { count: gMapTotal } = await supabaseAdmin
-      .from("client_queries")
-      .select("*", { count: "exact", head: true })
-      .eq("automation_id", automationId);
-
-    const { count: gMapPending } = await supabaseAdmin
-      .from("client_queries")
-      .select("*", { count: "exact", head: true })
-      .eq("automation_id", automationId)
-      .neq("status", "auto_completed");
-
-    // query_results: client_query_results
-    const { count: queryResultsTotal } = await supabaseAdmin
-      .from("client_query_results")
-      .select("*", { count: "exact", head: true })
-      .eq("automation_id", automationId);
-
-    const { count: queryResultsPending } = await supabaseAdmin
-      .from("client_query_results")
-      .select("*", { count: "exact", head: true })
-      .eq("automation_id", automationId)
-      .neq("gpt_process", "auto_completed");
-
-    // email_scraper: email_scraper_node
-    const { count: emailScraperTotal } = await supabaseAdmin
-      .from("email_scraper_node")
-      .select("*", { count: "exact", head: true })
-      .eq("automation_id", automationId);
-
-    const { count: emailScraperPending } = await supabaseAdmin
-      .from("email_scraper_node")
-      .select("*", { count: "exact", head: true })
-      .eq("automation_id", automationId)
-      .neq("status", "auto_final_completed");
+    const [
+      { count: gMapTotal },
+      { count: gMapPending },
+      { count: queryResultsTotal },
+      { count: queryResultsPending },
+      { count: emailScraperTotal },
+      { count: emailScraperPending },
+    ] = await Promise.all([
+      supabaseAdmin.from("client_queries").select("*", { count: "exact", head: true }).eq("automation_id", automationId),
+      supabaseAdmin.from("client_queries").select("*", { count: "exact", head: true }).eq("automation_id", automationId).neq("status", "auto_completed"),
+      supabaseAdmin.from("client_query_results").select("*", { count: "exact", head: true }).eq("automation_id", automationId),
+      supabaseAdmin.from("client_query_results").select("*", { count: "exact", head: true }).eq("automation_id", automationId).neq("gpt_process", "auto_completed"),
+      supabaseAdmin.from("email_scraper_node").select("*", { count: "exact", head: true }).eq("automation_id", automationId),
+      supabaseAdmin.from("email_scraper_node").select("*", { count: "exact", head: true }).eq("automation_id", automationId).neq("status", "auto_final_completed"),
+    ]);
 
     return NextResponse.json({
       g_map: { total: gMapTotal ?? 0, pending: gMapPending ?? 0 },

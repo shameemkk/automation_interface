@@ -286,6 +286,20 @@ function StatusModal({
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         ) : data ? (
           <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-4">
+              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                Percentage:{" "}
+                <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                  {data.query_results.total > 0
+                    ? `${Math.round(((data.query_results.total - data.query_results.pending) / data.query_results.total) * 100)}%`
+                    : "0%"}
+                  {" "}completed
+                </span>
+              </p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
+                The percentage is displayed correctly only after the G Map process is completed.
+              </p>
+            </div>
             <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
               <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-50 mb-2">
                 G Map (client_queries)

@@ -36,7 +36,7 @@ function parseLocationsFromCSV(csvText: string): {
   const latIdx = headers.findIndex((h) => h.trim() === "Latitude");
   const lngIdx = headers.findIndex((h) => h.trim() === "Longitude");
   const zipIdx = headers.findIndex((h) => h.trim() === "Zip Code");
-  if (formatIdx === -1 || latIdx === -1 || lngIdx === -1) return { locations: [], zipCodes: [] };
+  if (formatIdx === -1) return { locations: [], zipCodes: [] };
   
   const locations: [string, string, string][] = [];
   const zipCodes: string[] = [];
@@ -44,11 +44,11 @@ function parseLocationsFromCSV(csvText: string): {
   for (let i = 1; i < rows.length; i++) {
     const cols = rows[i];
     const format = cols[formatIdx]?.replace(/\n/g, "").trim();
-    const lat = cols[latIdx]?.toString().trim();
-    const lng = cols[lngIdx]?.toString().trim();
+    const lat = latIdx !== -1 ? (cols[latIdx]?.toString().trim() ?? "") : "";
+    const lng = lngIdx !== -1 ? (cols[lngIdx]?.toString().trim() ?? "") : "";
     const zip = zipIdx !== -1 ? cols[zipIdx]?.trim() : "";
     
-    if (!format || !lat || !lng) continue;
+    if (!format) continue;
     locations.push([format, lat, lng]);
     if (zip) zipCodes.push(zip);
   }
@@ -188,7 +188,7 @@ function EditClientModal({
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Client tag *</label>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Client tag <span className="text-red-500">*</span></label>
             <input
               type="text"
               value={form.client_tag ?? ""}
@@ -369,6 +369,11 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
     e.preventDefault();
     setSubmitError("");
     setLoading(true);
+    if (locations.length === 0) {
+      setSubmitError("Locations CSV is required. Please upload a CSV file.");
+      setLoading(false);
+      return;
+    }
     try {
       const body: Record<string, unknown> = {
         client_tag: form.client_tag,
@@ -376,11 +381,8 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
         zip_codes_format: form.zip_codes_format || null,
         drive_url: form.drive_url || null,
         process_automations: form.process_automations,
+        locations,
       };
-      if (locations.length > 0) {
-        // Send as [[format, latitude, longitude], ...] matching DB jsonb[] format
-        body.locations = locations;
-      }
       const res = await fetch("/api/client-details", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -410,7 +412,7 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-              Locations (CSV, add only)
+              Locations (CSV, add only) <span className="text-red-500">*</span>
             </label>
             <input
               ref={fileInputRef}
@@ -479,7 +481,7 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
           </div>
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-              Client tag *
+              Client tag <span className="text-red-500">*</span>
             </label>
             <input
               type="text"

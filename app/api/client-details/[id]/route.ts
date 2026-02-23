@@ -19,7 +19,7 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin
     .from("client_details")
-    .select("*")
+    .select("id, client_tag, zip_codes, zip_codes_format, drive_url, automation_mode, process_automations, query_created, created_at")
     .eq("id", numId)
     .single();
 
@@ -96,7 +96,7 @@ export async function PATCH(
       .from("client_details")
       .update(payload)
       .eq("id", numId)
-      .select()
+      .select("id, client_tag, zip_codes, zip_codes_format, drive_url, automation_mode, process_automations, query_created, created_at")
       .single();
 
     if (error) {

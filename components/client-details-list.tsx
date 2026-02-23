@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 export type ClientDetail = {
   id: number;
   client_tag: string;
-  locations: string | null;
+  locations?: string | null; // excluded from API response
   zip_codes: string | string[] | null;
   zip_codes_format: string | string[] | null;
   drive_url: string | null;

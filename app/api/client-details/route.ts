@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from("client_details")
-    .select("*")
+    .select("id, client_tag, zip_codes, zip_codes_format, drive_url, automation_mode, process_automations, query_created, created_at")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -44,6 +44,13 @@ export async function POST(request: Request) {
     if (!client_tag) {
       return NextResponse.json(
         { error: "client_tag is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!locations || !Array.isArray(locations) || locations.length === 0) {
+      return NextResponse.json(
+        { error: "locations is required. Please upload a CSV file." },
         { status: 400 }
       );
     }
@@ -100,7 +107,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabaseAdmin
       .from("client_details")
       .insert(payload)
-      .select()
+      .select("id, client_tag, zip_codes, zip_codes_format, drive_url, automation_mode, process_automations, query_created, created_at")
       .single();
 
     if (error) {

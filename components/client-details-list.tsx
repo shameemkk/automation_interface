@@ -11,6 +11,8 @@ export type ClientDetail = {
   drive_url: string | null;
   process_automations: boolean;
   query_created: boolean;
+  total_queries?: number;
+  remaining_queries?: number;
   created_at: string;
 };
 
@@ -113,6 +115,121 @@ function truncateZip(zip: string | string[] | null): string {
   return str.slice(0, ZIP_DISPLAY_MAX) + "...";
 }
 
+function ViewClientModal({
+  client,
+  onClose,
+}: {
+  client: ClientDetail;
+  onClose: () => void;
+}) {
+  const [totalQueries, setTotalQueries] = useState<number | null>(null);
+  const [remainingQueries, setRemainingQueries] = useState<number | null>(null);
+  const [countsLoading, setCountsLoading] = useState(true);
+
+  useEffect(() => {
+    setCountsLoading(true);
+    fetch(`/api/client-queries-count?client_tag=${encodeURIComponent(client.client_tag)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setTotalQueries(data.total_queries ?? 0);
+        setRemainingQueries(data.remaining_queries ?? 0);
+      })
+      .catch(() => {
+        setTotalQueries(0);
+        setRemainingQueries(0);
+      })
+      .finally(() => setCountsLoading(false));
+  }, [client.client_tag]);
+
+  const zipDisplay = Array.isArray(client.zip_codes)
+    ? client.zip_codes.join(", ")
+    : client.zip_codes ?? "—";
+  const formatDisplay = Array.isArray(client.zip_codes_format)
+    ? client.zip_codes_format.join(", ")
+    : client.zip_codes_format ?? "—";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
+            {client.client_tag}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            aria-label="Close"
+          >
+            <span className="sr-only">Close</span>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <dl className="space-y-3 text-sm">
+          <div>
+            <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Queries</dt>
+            <dd className="text-amber-600 dark:text-amber-400 font-medium">
+              {countsLoading
+                ? "Loading..."
+                : `${(remainingQueries ?? 0).toLocaleString()} remaining / ${(totalQueries ?? 0).toLocaleString()} total`}
+            </dd>
+          </div>
+          {/* <div>
+            <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Query created</dt>
+            <dd className={client.query_created ? "text-green-600 dark:text-green-400" : "text-zinc-600 dark:text-zinc-400"}>
+              {client.query_created ? "Yes" : "No"}
+            </dd>
+          </div> */}
+          <div>
+            <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Zip codes</dt>
+            <dd className="max-h-24 overflow-y-auto overflow-x-auto overscroll-contain rounded-md border border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 text-xs font-mono text-zinc-900 dark:text-zinc-50 break-words">
+              {zipDisplay}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Zip codes format</dt>
+            <dd className="max-h-24 overflow-y-auto overflow-x-auto overscroll-contain rounded-md border border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 text-xs font-mono text-zinc-900 dark:text-zinc-50 break-words">
+              {formatDisplay}
+            </dd>
+          </div>
+          {client.drive_url && (
+            <div>
+              <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Drive URL</dt>
+              <dd>
+                <a
+                  href={client.drive_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline break-all"
+                >
+                  {client.drive_url}
+                </a>
+              </dd>
+            </div>
+          )}
+        </dl>
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-zinc-300 dark:border-zinc-600 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditClientModal({
   client,
   onClose,
@@ -199,22 +316,22 @@ function EditClientModal({
           </div>
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Zip codes</label>
-            <input
-              type="text"
+            <textarea
               value={form.zip_codes ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, zip_codes: e.target.value }))}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
+              className="w-full min-h-[4rem] max-h-24 overflow-y-auto rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-mono text-zinc-900 dark:text-zinc-50 resize-none"
               placeholder="Comma-separated"
+              rows={3}
             />
           </div>
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Zip codes format</label>
-            <input
-              type="text"
+            <textarea
               value={form.zip_codes_format ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, zip_codes_format: e.target.value }))}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
+              className="w-full min-h-[4rem] max-h-24 overflow-y-auto rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-mono text-zinc-900 dark:text-zinc-50 resize-none"
               placeholder="Comma-separated"
+              rows={3}
             />
           </div>
           <div>
@@ -264,6 +381,7 @@ export function ClientDetailsList() {
   const [clients, setClients] = useState<ClientDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   async function fetchClients() {
     try {
@@ -311,14 +429,31 @@ export function ClientDetailsList() {
 
   return (
     <>
-      <AddClientForm onAdded={handleAdded} />
-      <div className="mt-8">
-        <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">
-          Client details ({clients.length})
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+          Total Clients : {clients.length}
         </h3>
+        <button
+          type="button"
+          onClick={() => setAddModalOpen(true)}
+          className="rounded-lg bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 px-4 py-2 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200"
+        >
+          Add client
+        </button>
+      </div>
+      {addModalOpen && (
+        <AddClientModal
+          onClose={() => setAddModalOpen(false)}
+          onAdded={(client) => {
+            handleAdded(client);
+            setAddModalOpen(false);
+          }}
+        />
+      )}
+      <div>
         {clients.length === 0 ? (
           <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-            No client details yet. Add one above.
+            No client details yet. Add one to get started.
           </p>
         ) : (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-700 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
@@ -339,7 +474,13 @@ export function ClientDetailsList() {
 
 const CSV_HEADERS = "Format, Latitude, Longitude, Zip Code";
 
-function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void }) {
+function AddClientModal({
+  onClose,
+  onAdded,
+}: {
+  onClose: () => void;
+  onAdded: (client: ClientDetail) => void;
+}) {
   const [form, setForm] = useState(emptyForm);
   const [locations, setLocations] = useState<[string, string, string][]>([]);
   const [submitError, setSubmitError] = useState("");
@@ -404,10 +545,30 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
   }
 
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 mb-6">
-      <h3 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">
-        Add client details
-      </h3>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-6 my-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
+            Add client details
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            aria-label="Close"
+          >
+            <span className="sr-only">Close</span>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
@@ -496,12 +657,12 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
               Zip codes format
             </label>
-            <input
-              type="text"
+            <textarea
               value={form.zip_codes_format ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, zip_codes_format: e.target.value }))}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
+              className="w-full min-h-[4rem] max-h-24 overflow-y-auto rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-mono text-zinc-900 dark:text-zinc-50 resize-none"
               placeholder="Comma-separated"
+              rows={3}
             />
           </div>
           <div className="sm:col-span-2">
@@ -535,14 +696,24 @@ function AddClientForm({ onAdded }: { onAdded: (client: ClientDetail) => void })
         {submitError && (
           <p className="text-sm text-red-600 dark:text-red-400">{submitError}</p>
         )}
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 px-4 py-2 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-50"
-        >
-          {loading ? "Adding..." : "Add client details"}
-        </button>
+        <div className="flex gap-2 pt-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-lg bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 px-4 py-2 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-50"
+          >
+            {loading ? "Adding..." : "Add client"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-zinc-300 dark:border-zinc-600 px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300"
+          >
+            Cancel
+          </button>
+        </div>
       </form>
+      </div>
     </div>
   );
 }
@@ -556,7 +727,8 @@ function ClientRow({
   onUpdated: (client: ClientDetail) => void;
   onDeleted: (id: number) => void;
 }) {
-  const [modalOpen, setModalOpen] = useState(false);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -583,60 +755,54 @@ function ClientRow({
           <p className="font-medium text-zinc-900 dark:text-zinc-50">
             {client.client_tag}
           </p>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate max-w-xs" title={Array.isArray(client.zip_codes) ? client.zip_codes.join(", ") : (client.zip_codes ?? undefined)}>
-            {truncateZip(client.zip_codes)}
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+            Process automations: {client.process_automations ? "Yes" : "No"} ·{" "}
+            <span className={ "text-zinc-400 dark:text-zinc-500"}>
+              Query created: {client.query_created ? "Yes" : "No"}
+            </span>
           </p>
-          {client.zip_codes_format != null && (Array.isArray(client.zip_codes_format) ? client.zip_codes_format.length > 0 : String(client.zip_codes_format).trim() !== "") && (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-xs" title={Array.isArray(client.zip_codes_format) ? client.zip_codes_format.join(", ") : (client.zip_codes_format ?? undefined)}>
-              Format: {truncateZip(client.zip_codes_format)}
-            </p>
-          )}
-        {client.drive_url && (
-          <a
-            href={client.drive_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline truncate block"
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setViewModalOpen(true)}
+            className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
           >
-            Drive link
-          </a>
-        )}
-        <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-          Process automations:{" "}
-          {client.process_automations ? "Yes" : "No"} ·{" "}
-          <span className={client.query_created ? "text-green-600 dark:text-green-400" : "text-zinc-400 dark:text-zinc-500"}>
-            Query created: {client.query_created ? "Yes" : "No"}
-          </span>
-        </p>
-      </div>
-      <div className="flex gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-        >
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={handleDelete}
-          disabled={loading}
-          className="rounded-lg px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-        >
-          Delete
-        </button>
-      </div>
-    </li>
-    {modalOpen && (
-      <EditClientModal
-        client={client}
-        onClose={() => setModalOpen(false)}
-        onSaved={(updated) => {
-          onUpdated(updated);
-          setModalOpen(false);
-        }}
-      />
-    )}
+            View
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditModalOpen(true)}
+            className="rounded-lg px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={loading}
+            className="rounded-lg px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+          >
+            Delete
+          </button>
+        </div>
+      </li>
+      {viewModalOpen && (
+        <ViewClientModal
+          client={client}
+          onClose={() => setViewModalOpen(false)}
+        />
+      )}
+      {editModalOpen && (
+        <EditClientModal
+          client={client}
+          onClose={() => setEditModalOpen(false)}
+          onSaved={(updated) => {
+            onUpdated(updated);
+            setEditModalOpen(false);
+          }}
+        />
+      )}
     </>
   );
 }

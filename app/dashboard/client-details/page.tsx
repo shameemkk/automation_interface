@@ -14,9 +14,9 @@ export default async function ClientDetailsPage() {
         <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-50 mb-2">
           Client details
         </h2>
-        <p className="text-zinc-600 dark:text-zinc-400 mb-6">
+        {/* <p className="text-zinc-600 dark:text-zinc-400 mb-6">
           Add, edit, and delete client details. Available to all users.
-        </p>
+        </p> */}
         <ClientDetailsList />
       </div>
     </div>

@@ -5,6 +5,12 @@ import { BUSINESS_CATEGORIES } from "@/lib/business-categories";
 
 const BATCH_SIZE = 200_000;
 
+function toNumericOrNull(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  const num = Number(value);
+  return isNaN(num) ? null : String(num);
+}
+
 function buildAllQueries(
   locations: unknown[],
   businessCategories: string[]
@@ -13,10 +19,8 @@ function buildAllQueries(
   for (const category of businessCategories) {
     for (const location of locations) {
       const locationStr = Array.isArray(location) ? location[0] : location;
-      const latitude =
-        Array.isArray(location) && location[1] ? location[1] : null;
-      const longitude =
-        Array.isArray(location) && location[2] ? location[2] : null;
+      const latitude = Array.isArray(location) ? toNumericOrNull(location[1]) : null;
+      const longitude = Array.isArray(location) ? toNumericOrNull(location[2]) : null;
       queries.push({ query: `${category}, ${locationStr}`, latitude, longitude });
     }
   }

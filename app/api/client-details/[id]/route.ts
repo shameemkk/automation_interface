@@ -19,7 +19,7 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin
     .from("client_details")
-    .select("id, client_tag, zip_codes, zip_codes_format, business_categories, drive_url, automation_mode, process_automations, query_created, created_at")
+    .select("id, client_tag, zip_codes, zip_codes_format, business_categories, allowed_types, drive_url, automation_mode, process_automations, query_created, created_at")
     .eq("id", numId)
     .single();
 
@@ -53,6 +53,7 @@ export async function PATCH(
       zip_codes,
       zip_codes_format,
       business_categories,
+      allowed_types,
       drive_url,
       process_automations,
     } = body;
@@ -101,6 +102,18 @@ export async function PATCH(
                 .filter(Boolean);
       payload.business_categories = parsed && parsed.length > 0 ? parsed : null;
     }
+    if (allowed_types !== undefined) {
+      const parsed =
+        allowed_types == null
+          ? null
+          : Array.isArray(allowed_types)
+            ? allowed_types.map((c: unknown) => String(c).trim()).filter(Boolean)
+            : String(allowed_types)
+                .split("\n")
+                .map((c) => c.trim())
+                .filter(Boolean);
+      payload.allowed_types = parsed && parsed.length > 0 ? parsed : null;
+    }
     if (drive_url !== undefined) payload.drive_url = drive_url == null ? null : String(drive_url).trim();
     if (process_automations !== undefined) payload.process_automations = Boolean(process_automations);
     if (body.query_created !== undefined) payload.query_created = Boolean(body.query_created);
@@ -109,7 +122,7 @@ export async function PATCH(
       .from("client_details")
       .update(payload)
       .eq("id", numId)
-      .select("id, client_tag, zip_codes, zip_codes_format, business_categories, drive_url, automation_mode, process_automations, query_created, created_at")
+      .select("id, client_tag, zip_codes, zip_codes_format, business_categories, allowed_types, drive_url, automation_mode, process_automations, query_created, created_at")
       .single();
 
     if (error) {

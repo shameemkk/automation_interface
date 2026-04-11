@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from("client_details")
-    .select("id, client_tag, zip_codes, zip_codes_format, business_categories, drive_url, automation_mode, process_automations, query_created, created_at")
+    .select("id, client_tag, zip_codes, zip_codes_format, business_categories, allowed_types, drive_url, automation_mode, process_automations, query_created, created_at")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
       zip_codes,
       zip_codes_format,
       business_categories,
+      allowed_types,
       drive_url,
       process_automations,
     } = body;
@@ -74,6 +75,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // allowed_types: accept string (newline-separated) or string[]; store as text[]
+    const allowedTypesArray =
+      allowed_types == null
+        ? null
+        : Array.isArray(allowed_types)
+          ? allowed_types.map((c: unknown) => String(c).trim()).filter(Boolean)
+          : String(allowed_types)
+              .split("\n")
+              .map((c) => c.trim())
+              .filter(Boolean);
+
     // zip_codes is text[] in DB: send as string array (comma-separated input → array)
     const zipCodesArray =
       zip_codes == null
@@ -103,6 +115,7 @@ export async function POST(request: Request) {
       zip_codes: zipCodesArray?.length ? zipCodesArray : null,
       zip_codes_format: zipCodesFormatArray?.length ? zipCodesFormatArray : null,
       business_categories: businessCategoriesArray,
+      allowed_types: allowedTypesArray?.length ? allowedTypesArray : null,
       drive_url: drive_url != null ? String(drive_url).trim() : null,
       process_automations: Boolean(process_automations),
     };
@@ -127,7 +140,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabaseAdmin
       .from("client_details")
       .insert(payload)
-      .select("id, client_tag, zip_codes, zip_codes_format, business_categories, drive_url, automation_mode, process_automations, query_created, created_at")
+      .select("id, client_tag, zip_codes, zip_codes_format, business_categories, allowed_types, drive_url, automation_mode, process_automations, query_created, created_at")
       .single();
 
     if (error) {

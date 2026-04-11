@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS client_details (
   zip_codes TEXT,
   zip_codes_format TEXT[],
   business_categories TEXT[],
+  allowed_types TEXT[],
   drive_url TEXT,
   process_automations BOOLEAN NOT NULL DEFAULT false,
   query_created BOOLEAN DEFAULT false,
@@ -46,6 +47,9 @@ CREATE TABLE IF NOT EXISTS client_details (
 -- Migration for existing deployments:
 ALTER TABLE client_details
   ADD COLUMN IF NOT EXISTS business_categories TEXT[];
+
+ALTER TABLE client_details
+  ADD COLUMN IF NOT EXISTS allowed_types TEXT[];
 
 ALTER TABLE client_details ENABLE ROW LEVEL SECURITY;
 

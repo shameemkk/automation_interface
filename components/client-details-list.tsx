@@ -9,6 +9,7 @@ export type ClientDetail = {
   zip_codes: string | string[] | null;
   zip_codes_format: string | string[] | null;
   business_categories: string[] | null;
+  allowed_types: string[] | null;
   drive_url: string | null;
   process_automations: boolean;
   query_created: boolean;
@@ -22,6 +23,7 @@ const emptyForm = {
   zip_codes: "",
   zip_codes_format: "",
   business_categories: "",
+  allowed_types: "",
   drive_url: "",
   process_automations: true,
 };
@@ -170,6 +172,10 @@ function ViewClientModal({
     ? client.business_categories
     : [];
   const categoriesDisplay = categoriesList.length > 0 ? categoriesList.join("\n") : "—";
+  const allowedTypesList = Array.isArray(client.allowed_types)
+    ? client.allowed_types
+    : [];
+  const allowedTypesDisplay = allowedTypesList.length > 0 ? allowedTypesList.join("\n") : "—";
 
   return (
     <div
@@ -231,6 +237,14 @@ function ViewClientModal({
               {categoriesDisplay}
             </dd>
           </div>
+          <div>
+            <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+              Allowed types ({allowedTypesList.length})
+            </dt>
+            <dd className="max-h-32 overflow-y-auto overscroll-contain rounded-md border border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 text-xs font-mono text-zinc-900 dark:text-zinc-50 whitespace-pre-wrap break-words">
+              {allowedTypesDisplay}
+            </dd>
+          </div>
           {client.drive_url && (
             <div>
               <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Drive URL</dt>
@@ -275,6 +289,7 @@ function EditClientModal({
     zip_codes: Array.isArray(client.zip_codes) ? client.zip_codes.join(", ") : (client.zip_codes ?? ""),
     zip_codes_format: Array.isArray(client.zip_codes_format) ? client.zip_codes_format.join(", ") : (client.zip_codes_format ?? ""),
     business_categories: Array.isArray(client.business_categories) ? client.business_categories.join("\n") : "",
+    allowed_types: Array.isArray(client.allowed_types) ? client.allowed_types.join("\n") : "",
     drive_url: client.drive_url ?? "",
     process_automations: client.process_automations,
   });
@@ -321,6 +336,7 @@ function EditClientModal({
           zip_codes: form.zip_codes || null,
           zip_codes_format: form.zip_codes_format || null,
           business_categories: form.business_categories,
+          allowed_types: form.allowed_types,
           drive_url: form.drive_url || null,
           process_automations: form.process_automations,
         }),
@@ -344,7 +360,7 @@ function EditClientModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-6"
+        className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -432,6 +448,23 @@ function EditClientModal({
               placeholder={"Hotel\nMotel\nResort hotel"}
               rows={6}
               required
+            />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                Allowed types (one per line)
+              </label>
+              <span className="ml-auto text-[11px] text-zinc-500 dark:text-zinc-400">
+                {form.allowed_types.split("\n").map((c) => c.trim()).filter(Boolean).length} loaded
+              </span>
+            </div>
+            <textarea
+              value={form.allowed_types ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, allowed_types: e.target.value }))}
+              className="w-full min-h-16 max-h-48 overflow-y-auto rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-mono text-zinc-900 dark:text-zinc-50 resize-y"
+              placeholder={"restaurant\nlodging\ntourist_attraction"}
+              rows={4}
             />
           </div>
           <div>
@@ -649,6 +682,7 @@ function AddClientModal({
         zip_codes: form.zip_codes || null,
         zip_codes_format: form.zip_codes_format || null,
         business_categories: form.business_categories,
+        allowed_types: form.allowed_types,
         drive_url: form.drive_url || null,
         process_automations: form.process_automations,
         locations,
@@ -826,6 +860,25 @@ function AddClientModal({
             placeholder={"Hotel\nMotel\nResort hotel"}
             rows={6}
             required
+          />
+        </div>
+
+        {/* Row 2b: Allowed types (full width) */}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Allowed types (one per line)
+            </label>
+            <span className="ml-auto text-[11px] text-zinc-500 dark:text-zinc-400">
+              {form.allowed_types.split("\n").map((c) => c.trim()).filter(Boolean).length} loaded
+            </span>
+          </div>
+          <textarea
+            value={form.allowed_types ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, allowed_types: e.target.value }))}
+            className="w-full min-h-16 max-h-64 overflow-y-auto rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-mono text-zinc-900 dark:text-zinc-50 resize-y"
+            placeholder={"restaurant\nlodging\ntourist_attraction"}
+            rows={4}
           />
         </div>
 

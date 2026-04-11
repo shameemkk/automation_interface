@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { BUSINESS_CATEGORIES } from "@/lib/business-categories";
 
 const BATCH_SIZE = 200_000;
 
@@ -56,7 +55,7 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabaseAdmin
       .from("client_details")
-      .select("locations")
+      .select("locations, business_categories")
       .eq("client_tag", clientTag)
       .single();
 
@@ -75,8 +74,22 @@ export async function POST(request: Request) {
       );
     }
 
+    if (
+      !data.business_categories ||
+      !Array.isArray(data.business_categories) ||
+      data.business_categories.length === 0
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "No business categories set for this client. Please add them in client details.",
+        },
+        { status: 400 }
+      );
+    }
+
     const locations = data.locations;
-    const businessCategories = BUSINESS_CATEGORIES;
+    const businessCategories: string[] = data.business_categories;
     const allQueries = buildAllQueries(locations, businessCategories);
     const totalQueries = allQueries.length;
     const totalBatches = Math.ceil(totalQueries / BATCH_SIZE);

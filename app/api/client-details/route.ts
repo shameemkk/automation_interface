@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from("client_details")
-    .select("id, client_tag, zip_codes, zip_codes_format, drive_url, automation_mode, process_automations, query_created, created_at")
+    .select("id, client_tag, zip_codes, zip_codes_format, business_categories, drive_url, automation_mode, process_automations, query_created, created_at")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -37,6 +37,7 @@ export async function POST(request: Request) {
       locations,
       zip_codes,
       zip_codes_format,
+      business_categories,
       drive_url,
       process_automations,
     } = body;
@@ -51,6 +52,24 @@ export async function POST(request: Request) {
     if (!locations || !Array.isArray(locations) || locations.length === 0) {
       return NextResponse.json(
         { error: "locations is required. Please upload a CSV file." },
+        { status: 400 }
+      );
+    }
+
+    // business_categories: accept string (newline-separated) or string[]; store as text[]
+    const businessCategoriesArray =
+      business_categories == null
+        ? null
+        : Array.isArray(business_categories)
+          ? business_categories.map((c: unknown) => String(c).trim()).filter(Boolean)
+          : String(business_categories)
+              .split("\n")
+              .map((c) => c.trim())
+              .filter(Boolean);
+
+    if (!businessCategoriesArray || businessCategoriesArray.length === 0) {
+      return NextResponse.json(
+        { error: "business_categories is required. Enter at least one category." },
         { status: 400 }
       );
     }
@@ -83,6 +102,7 @@ export async function POST(request: Request) {
       client_tag: String(client_tag).trim(),
       zip_codes: zipCodesArray?.length ? zipCodesArray : null,
       zip_codes_format: zipCodesFormatArray?.length ? zipCodesFormatArray : null,
+      business_categories: businessCategoriesArray,
       drive_url: drive_url != null ? String(drive_url).trim() : null,
       process_automations: Boolean(process_automations),
     };
@@ -107,7 +127,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabaseAdmin
       .from("client_details")
       .insert(payload)
-      .select("id, client_tag, zip_codes, zip_codes_format, drive_url, automation_mode, process_automations, query_created, created_at")
+      .select("id, client_tag, zip_codes, zip_codes_format, business_categories, drive_url, automation_mode, process_automations, query_created, created_at")
       .single();
 
     if (error) {

@@ -8,6 +8,7 @@ export type ClientDetail = {
   locations?: string | null; // excluded from API response
   zip_codes: string | string[] | null;
   zip_codes_format: string | string[] | null;
+  business_categories: string[] | null;
   drive_url: string | null;
   process_automations: boolean;
   query_created: boolean;
@@ -20,6 +21,7 @@ const emptyForm = {
   client_tag: "",
   zip_codes: "",
   zip_codes_format: "",
+  business_categories: "",
   drive_url: "",
   process_automations: true,
 };
@@ -108,6 +110,23 @@ function parseCSVRows(csvText: string): string[][] {
 }
 
 
+/** Parse CSV with a header named "business_categories" (case-insensitive). Returns category strings. */
+function parseBusinessCategoriesFromCSV(csvText: string): string[] {
+  const rows = parseCSVRows(csvText);
+  if (rows.length < 2) return [];
+  const headers = rows[0];
+  const idx = headers.findIndex(
+    (h) => h.trim().toLowerCase() === "business_categories"
+  );
+  if (idx === -1) return [];
+  const categories: string[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const val = rows[i][idx]?.trim();
+    if (val) categories.push(val);
+  }
+  return categories;
+}
+
 function truncateZip(zip: string | string[] | null): string {
   const str = Array.isArray(zip) ? zip.join(", ") : zip;
   if (!str) return "—";
@@ -147,6 +166,10 @@ function ViewClientModal({
   const formatDisplay = Array.isArray(client.zip_codes_format)
     ? client.zip_codes_format.join(", ")
     : client.zip_codes_format ?? "—";
+  const categoriesList = Array.isArray(client.business_categories)
+    ? client.business_categories
+    : [];
+  const categoriesDisplay = categoriesList.length > 0 ? categoriesList.join("\n") : "—";
 
   return (
     <div
@@ -200,6 +223,14 @@ function ViewClientModal({
               {formatDisplay}
             </dd>
           </div>
+          <div>
+            <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+              Business categories ({categoriesList.length})
+            </dt>
+            <dd className="max-h-32 overflow-y-auto overscroll-contain rounded-md border border-zinc-200 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2 text-xs font-mono text-zinc-900 dark:text-zinc-50 whitespace-pre-wrap break-words">
+              {categoriesDisplay}
+            </dd>
+          </div>
           {client.drive_url && (
             <div>
               <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Drive URL</dt>
@@ -243,15 +274,43 @@ function EditClientModal({
     client_tag: client.client_tag,
     zip_codes: Array.isArray(client.zip_codes) ? client.zip_codes.join(", ") : (client.zip_codes ?? ""),
     zip_codes_format: Array.isArray(client.zip_codes_format) ? client.zip_codes_format.join(", ") : (client.zip_codes_format ?? ""),
+    business_categories: Array.isArray(client.business_categories) ? client.business_categories.join("\n") : "",
     drive_url: client.drive_url ?? "",
     process_automations: client.process_automations,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const categoriesFileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleCategoriesCSVFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      const parsed = parseBusinessCategoriesFromCSV(text);
+      if (parsed.length === 0) {
+        setError('CSV must have a "business_categories" header column with at least one row.');
+        return;
+      }
+      setError("");
+      setForm((f) => ({ ...f, business_categories: parsed.join("\n") }));
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    const trimmedCategories = form.business_categories
+      .split("\n")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    if (trimmedCategories.length === 0) {
+      setError("Business categories are required. Enter at least one category.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/client-details/${client.id}`, {
@@ -261,6 +320,7 @@ function EditClientModal({
           client_tag: form.client_tag,
           zip_codes: form.zip_codes || null,
           zip_codes_format: form.zip_codes_format || null,
+          business_categories: form.business_categories,
           drive_url: form.drive_url || null,
           process_automations: form.process_automations,
         }),
@@ -332,6 +392,46 @@ function EditClientModal({
               className="w-full min-h-[4rem] max-h-24 overflow-y-auto rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-mono text-zinc-900 dark:text-zinc-50 resize-none"
               placeholder="Comma-separated"
               rows={3}
+            />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                Business categories (one per line) <span className="text-red-500">*</span>
+              </label>
+              <input
+                ref={categoriesFileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleCategoriesCSVFile}
+                className="hidden"
+              />
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => categoriesFileInputRef.current?.click()}
+                  className="inline-flex items-center justify-center rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  aria-label="Upload business categories CSV"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0-12l-4 4m4-4l4 4" />
+                  </svg>
+                </button>
+                <div className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/80 px-2 py-1 text-[11px] font-medium text-amber-800 dark:text-amber-200 shadow-sm group-hover:block">
+                  CSV header must be <span className="font-mono">business_categories</span>
+                </div>
+              </div>
+              <span className="ml-auto text-[11px] text-zinc-500 dark:text-zinc-400">
+                {form.business_categories.split("\n").map((c) => c.trim()).filter(Boolean).length} loaded
+              </span>
+            </div>
+            <textarea
+              value={form.business_categories ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, business_categories: e.target.value }))}
+              className="w-full min-h-[6rem] max-h-48 overflow-y-auto rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-mono text-zinc-900 dark:text-zinc-50 resize-y"
+              placeholder={"Hotel\nMotel\nResort hotel"}
+              rows={6}
+              required
             />
           </div>
           <div>
@@ -487,6 +587,7 @@ function AddClientModal({
   const [loading, setLoading] = useState(false);
   const [csvFormatOpen, setCsvFormatOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const categoriesFileInputRef = useRef<HTMLInputElement>(null);
 
   function handleCSVFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -506,6 +607,24 @@ function AddClientModal({
     e.target.value = "";
   }
 
+  function handleCategoriesCSVFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? "");
+      const parsed = parseBusinessCategoriesFromCSV(text);
+      if (parsed.length === 0) {
+        setSubmitError('CSV must have a "business_categories" header column with at least one row.');
+        return;
+      }
+      setSubmitError("");
+      setForm((f) => ({ ...f, business_categories: parsed.join("\n") }));
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError("");
@@ -515,11 +634,21 @@ function AddClientModal({
       setLoading(false);
       return;
     }
+    const trimmedCategories = form.business_categories
+      .split("\n")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    if (trimmedCategories.length === 0) {
+      setSubmitError("Business categories are required. Enter at least one category.");
+      setLoading(false);
+      return;
+    }
     try {
       const body: Record<string, unknown> = {
         client_tag: form.client_tag,
         zip_codes: form.zip_codes || null,
         zip_codes_format: form.zip_codes_format || null,
+        business_categories: form.business_categories,
         drive_url: form.drive_url || null,
         process_automations: form.process_automations,
         locations,
@@ -569,8 +698,22 @@ function AddClientModal({
             </svg>
           </button>
         </div>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Row 1: Client tag + Locations CSV */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+              Client tag <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.client_tag ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, client_tag: e.target.value }))}
+              className="w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 text-sm text-zinc-900 dark:text-zinc-50"
+              placeholder="e.g. [Client tag]"
+              required
+            />
+          </div>
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
               Locations (CSV, add only) <span className="text-red-500">*</span>
@@ -582,19 +725,21 @@ function AddClientModal({
               onChange={handleCSVFile}
               className="hidden"
             />
-            <button
-              type="button"
-              onClick={() => setCsvFormatOpen(true)}
-              className="rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700"
-            >
-              Choose file
-            </button>
-            {locations.length > 0 && (
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                Loaded {locations.length} location(s)
-                {form.zip_codes ? ` and ${form.zip_codes.split(",").length} zip code(s)` : ""} from CSV.
-              </p>
-            )}
+            <div className="flex items-center gap-3 h-10">
+              <button
+                type="button"
+                onClick={() => setCsvFormatOpen(true)}
+                className="h-10 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 whitespace-nowrap"
+              >
+                {locations.length > 0 ? "Replace file" : "Choose file"}
+              </button>
+              {locations.length > 0 && (
+                <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+                  {locations.length} location(s)
+                  {form.zip_codes ? ` · ${form.zip_codes.split(",").length} zip(s)` : ""}
+                </span>
+              )}
+            </div>
             {csvFormatOpen && (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
@@ -640,19 +785,52 @@ function AddClientModal({
               </div>
             )}
           </div>
-          <div>
-            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-              Client tag <span className="text-red-500">*</span>
+        </div>
+
+        {/* Row 2: Business categories (full width) */}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Business categories (one per line) <span className="text-red-500">*</span>
             </label>
             <input
-              type="text"
-              value={form.client_tag ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, client_tag: e.target.value }))}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
-              placeholder="e.g. [Client tag]"
-              required
+              ref={categoriesFileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleCategoriesCSVFile}
+              className="hidden"
             />
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={() => categoriesFileInputRef.current?.click()}
+                className="inline-flex items-center justify-center rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                aria-label="Upload business categories CSV"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0-12l-4 4m4-4l4 4" />
+                </svg>
+              </button>
+              <div className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/80 px-2 py-1 text-[11px] font-medium text-amber-800 dark:text-amber-200 shadow-sm group-hover:block">
+                CSV header must be <span className="font-mono">business_categories</span>
+              </div>
+            </div>
+            <span className="ml-auto text-[11px] text-zinc-500 dark:text-zinc-400">
+              {form.business_categories.split("\n").map((c) => c.trim()).filter(Boolean).length} loaded
+            </span>
           </div>
+          <textarea
+            value={form.business_categories ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, business_categories: e.target.value }))}
+            className="w-full min-h-[6rem] max-h-64 overflow-y-auto rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-mono text-zinc-900 dark:text-zinc-50 resize-y"
+            placeholder={"Hotel\nMotel\nResort hotel"}
+            rows={6}
+            required
+          />
+        </div>
+
+        {/* Row 3: Zip codes format + Drive URL */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
               Zip codes format
@@ -660,12 +838,12 @@ function AddClientModal({
             <textarea
               value={form.zip_codes_format ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, zip_codes_format: e.target.value }))}
-              className="w-full min-h-[4rem] max-h-24 overflow-y-auto rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-mono text-zinc-900 dark:text-zinc-50 resize-none"
+              className="w-full min-h-[2.5rem] max-h-24 overflow-y-auto rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm font-mono text-zinc-900 dark:text-zinc-50 resize-none"
               placeholder="Comma-separated"
-              rows={3}
+              rows={2}
             />
           </div>
-          <div className="sm:col-span-2">
+          <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
               Drive URL
             </label>
@@ -673,30 +851,31 @@ function AddClientModal({
               type="url"
               value={form.drive_url ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, drive_url: e.target.value }))}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
+              className="w-full h-10 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 text-sm text-zinc-900 dark:text-zinc-50"
               placeholder="https://drive.google.com/..."
             />
           </div>
-          <div className="flex items-end">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.process_automations === true}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, process_automations: e.target.checked }))
-                }
-                className="rounded border-zinc-300 dark:border-zinc-600"
-              />
-              <span className="text-sm text-zinc-700 dark:text-zinc-300">
-                Process automations
-              </span>
-            </label>
-          </div>
         </div>
+
+        {/* Row 4: Process automations */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.process_automations === true}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, process_automations: e.target.checked }))
+            }
+            className="rounded border-zinc-300 dark:border-zinc-600"
+          />
+          <span className="text-sm text-zinc-700 dark:text-zinc-300">
+            Process automations
+          </span>
+        </label>
+
         {submitError && (
           <p className="text-sm text-red-600 dark:text-red-400">{submitError}</p>
         )}
-        <div className="flex gap-2 pt-2">
+        <div className="flex gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
           <button
             type="submit"
             disabled={loading}

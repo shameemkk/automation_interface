@@ -19,7 +19,7 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin
     .from("client_details")
-    .select("id, client_tag, zip_codes, zip_codes_format, drive_url, automation_mode, process_automations, query_created, created_at")
+    .select("id, client_tag, zip_codes, zip_codes_format, business_categories, drive_url, automation_mode, process_automations, query_created, created_at")
     .eq("id", numId)
     .single();
 
@@ -52,6 +52,7 @@ export async function PATCH(
       locations,
       zip_codes,
       zip_codes_format,
+      business_categories,
       drive_url,
       process_automations,
     } = body;
@@ -88,6 +89,18 @@ export async function PATCH(
       if (Array.isArray(payload.zip_codes_format) && (payload.zip_codes_format as unknown[]).length === 0)
         payload.zip_codes_format = null;
     }
+    if (business_categories !== undefined) {
+      const parsed =
+        business_categories == null
+          ? null
+          : Array.isArray(business_categories)
+            ? business_categories.map((c: unknown) => String(c).trim()).filter(Boolean)
+            : String(business_categories)
+                .split("\n")
+                .map((c) => c.trim())
+                .filter(Boolean);
+      payload.business_categories = parsed && parsed.length > 0 ? parsed : null;
+    }
     if (drive_url !== undefined) payload.drive_url = drive_url == null ? null : String(drive_url).trim();
     if (process_automations !== undefined) payload.process_automations = Boolean(process_automations);
     if (body.query_created !== undefined) payload.query_created = Boolean(body.query_created);
@@ -96,7 +109,7 @@ export async function PATCH(
       .from("client_details")
       .update(payload)
       .eq("id", numId)
-      .select("id, client_tag, zip_codes, zip_codes_format, drive_url, automation_mode, process_automations, query_created, created_at")
+      .select("id, client_tag, zip_codes, zip_codes_format, business_categories, drive_url, automation_mode, process_automations, query_created, created_at")
       .single();
 
     if (error) {

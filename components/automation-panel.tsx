@@ -35,6 +35,7 @@ export function AutomationPanel() {
   const [triggerModalOpen, setTriggerModalOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [statusModalId, setStatusModalId] = useState<number | null>(null);
+  const [analyticsModalId, setAnalyticsModalId] = useState<number | null>(null);
 
   async function fetchLogs(p: number = page) {
     try {
@@ -130,13 +131,24 @@ export function AutomationPanel() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => setStatusModalId(log.id)}
-                        className="rounded-lg bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 px-3 py-1.5 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200"
-                      >
-                        View
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setStatusModalId(log.id)}
+                          className="rounded-lg bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 px-3 py-1.5 text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200"
+                        >
+                          View
+                        </button>
+                        {log.status === "completed" && (
+                          <button
+                            type="button"
+                            onClick={() => setAnalyticsModalId(log.id)}
+                            className="rounded-lg border border-zinc-300 dark:border-zinc-600 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          >
+                            Analytics
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -178,6 +190,13 @@ export function AutomationPanel() {
         <StatusModal
           automationId={statusModalId}
           onClose={() => setStatusModalId(null)}
+        />
+      )}
+
+      {analyticsModalId != null && (
+        <AnalyticsModal
+          automationId={analyticsModalId}
+          onClose={() => setAnalyticsModalId(null)}
         />
       )}
 
@@ -334,6 +353,130 @@ function StatusModal({
   );
 }
 
+type AnalyticsData = {
+  total_rows: number;
+  has_email_rows: number;
+  no_email_rows: number;
+  outscraper_with_email: number;
+  browser_rendering_with_email: number;
+  google_search_with_email: number;
+  http_request_with_email: number;
+};
+
+function AnalyticsModal({
+  automationId,
+  onClose,
+}: {
+  automationId: number;
+  onClose: () => void;
+}) {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function fetchAnalytics() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/automation-analytics/${automationId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      const json = await res.json();
+      setData(json);
+    } catch {
+      setError("Failed to load analytics.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [automationId]);
+
+  const emailPct =
+    data && data.total_rows > 0
+      ? Math.round((data.has_email_rows / data.total_rows) * 100)
+      : 0;
+
+  const scrapeTypes = data
+    ? [
+        { label: "HTTP request", count: data.http_request_with_email },
+        { label: "Browser rendering", count: data.browser_rendering_with_email },
+        { label: "Google search", count: data.google_search_with_email },
+        { label: "Outscraper", count: data.outscraper_with_email },
+      ]
+    : [];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
+            Analytics (ID: {automationId})
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            aria-label="Close"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {loading ? (
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm">Loading...</p>
+        ) : error ? (
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        ) : data ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+              <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-50 mb-2">
+                Overview
+              </h4>
+              <div className="space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+                <p>Total rows: <span className="font-medium text-zinc-900 dark:text-zinc-50">{data.total_rows}</span></p>
+                <p>
+                  With email:{" "}
+                  <span className="font-medium text-zinc-900 dark:text-zinc-50">{data.has_email_rows}</span>
+                  <span className="ml-1 text-xs text-zinc-400">({emailPct}%)</span>
+                </p>
+                <p>
+                  Without email:{" "}
+                  <span className="font-medium text-zinc-900 dark:text-zinc-50">{data.no_email_rows}</span>
+                  <span className="ml-1 text-xs text-zinc-400">({data.total_rows > 0 ? 100 - emailPct : 0}%)</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-4">
+              <h4 className="text-sm font-medium text-zinc-900 dark:text-zinc-50 mb-2">
+                Emails by scrape type
+              </h4>
+              <div className="space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+                {scrapeTypes.map(({ label, count }) => (
+                  <p key={label}>
+                    {label}:{" "}
+                    <span className="font-medium text-zinc-900 dark:text-zinc-50">{count}</span>
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function ManualTriggerModal({
   onClose,
   onConfirmOpen,
@@ -348,7 +491,8 @@ function ManualTriggerModal({
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [search, setSearch] = useState("");
   const [selectedClient, setSelectedClient] = useState<ClientOption | null>(null);
-  const [batchSize, setBatchSize] = useState("10");
+  const [batchSize, setBatchSize] = useState("50000");
+  const [dedupMode, setDedupMode] = useState<"no_need" | "global" | "client_tag">("global");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -400,6 +544,7 @@ function ManualTriggerModal({
         body: JSON.stringify({
           client_tag: selectedClient.client_tag,
           batch_size: Number(batchSize),
+          dedup_mode: dedupMode,
         }),
       });
       const data = await res.json();
@@ -430,7 +575,7 @@ function ManualTriggerModal({
           </h4>
           <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
             Start automation for client <strong>{selectedClient?.client_tag}</strong> with
-            batch size <strong>{batchSize}</strong>?
+            batch size <strong>{batchSize}</strong> and dedup mode <strong>{dedupMode}</strong>?
           </p>
           {error && (
             <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>
@@ -543,6 +688,41 @@ function ManualTriggerModal({
               onChange={(e) => setBatchSize(e.target.value)}
               className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
             />
+          </div>
+
+          <div>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Dedup mode</span>
+              <div className="relative group">
+                <svg className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500 cursor-default" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" strokeWidth={2} />
+                  <path strokeLinecap="round" strokeWidth={2} d="M12 11v5M12 8h.01" />
+                </svg>
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg p-3 hidden group-hover:block z-50 pointer-events-none">
+                  <div className="space-y-2.5">
+                    {[
+                      { label: "Global", value: "global", desc: "Check scraped tables across all clients. The website will never be inserted twice." },
+                      { label: "Client Tag", value: "client_tag", desc: "Check scraped tables within the same client only. The same website can exist for different clients but won't be duplicated within the same client." },
+                      { label: "No Need", value: "no_need", desc: "Check within the same automation run only. The same website can be re-inserted in a future automation trigger, but won't be duplicated within the current one." },
+                    ].map((opt) => (
+                      <div key={opt.value}>
+                        <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200">{opt.label} <span className="font-normal text-zinc-400">({opt.value})</span></p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-snug mt-0.5">{opt.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <select
+              value={dedupMode}
+              onChange={(e) => setDedupMode(e.target.value as "no_need" | "global" | "client_tag")}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50"
+            >
+              <option value="global">Global</option>
+              <option value="client_tag">Client Tag</option>
+              <option value="no_need">No Need</option>
+            </select>
           </div>
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

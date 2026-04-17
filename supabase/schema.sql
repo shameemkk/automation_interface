@@ -134,13 +134,14 @@ $$ LANGUAGE plpgsql;
 
 -- -----------------------------------------------------------------------------
 -- 5. change_not_used_to_auto_queued RPC
--- Updates client_queries from 'not_used' to 'auto_queued' and sets automation_id
--- Usage: select change_not_used_to_auto_queued('tag_A', p_batch_size, p_automation_id);
+-- Updates client_queries from 'not_used' to 'auto_queued' and sets automation_id + dedup_mode
+-- Usage: select change_not_used_to_auto_queued('tag_A', p_batch_size, p_automation_id, 'global');
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION change_not_used_to_auto_queued(
   p_client_tag TEXT,
   p_batch_size INT,
-  p_automation_id BIGINT
+  p_automation_id BIGINT,
+  p_dedup_mode TEXT DEFAULT 'global'
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -152,7 +153,8 @@ BEGIN
     UPDATE client_queries
     SET
       status = 'auto_queued',
-      automation_id = p_automation_id
+      automation_id = p_automation_id,
+      dedup_mode = p_dedup_mode
     WHERE id IN (
       SELECT q.id
       FROM client_queries q
@@ -181,7 +183,10 @@ $$;
 --
 -- client_queries
 --   Required columns: id, client_tag, query, latitude, longitude, mode, status,
---   region, automation_id (FK to automation_logs.id, nullable initially)
+--   region, automation_id (FK to automation_logs.id, nullable initially),
+--   dedup_mode TEXT DEFAULT 'global' CHECK (dedup_mode IN ('no_need', 'global', 'client_tag'))
+--   Migration: ALTER TABLE client_queries ADD COLUMN dedup_mode text DEFAULT 'global'
+--              CHECK (dedup_mode IN ('no_need', 'global', 'client_tag'));
 --   Used by: bulk_insert_client_queries, client-queries-count API, automation-status API
 --   Status values: 'not_used', 'auto_queued', 'auto_completed', etc.
 --
@@ -191,8 +196,67 @@ $$;
 --   gpt_process values: 'auto_completed' = done, others = pending
 --
 -- email_scraper_node
---   Required columns: id, automation_id, status
---   Used by: automation-status API
+--   Required columns: id, automation_id, status, emails (TEXT[]), scrape_type (TEXT)
+--   Used by: automation-status API, get_automation_analytics RPC
 --   status values: 'auto_final_completed' = done, others = pending
 --
+
+
+-- =============================================================================
+-- 6. get_automation_status RPC
+-- Returns processing status counts for an automation run across 3 tables.
+-- Usage: select get_automation_status(p_automation_id);
+-- =============================================================================
+CREATE OR REPLACE FUNCTION get_automation_status(p_automation_id BIGINT)
+RETURNS JSON
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  result JSON;
+BEGIN
+  SELECT json_build_object(
+    'g_map', json_build_object(
+      'total', (SELECT COUNT(*) FROM client_queries WHERE automation_id = p_automation_id),
+      'pending', (SELECT COUNT(*) FROM client_queries WHERE automation_id = p_automation_id AND status != 'auto_completed')
+    ),
+    'query_results', json_build_object(
+      'total', (SELECT COUNT(*) FROM client_query_results WHERE automation_id = p_automation_id),
+      'pending', (SELECT COUNT(*) FROM client_query_results WHERE automation_id = p_automation_id AND gpt_process != 'auto_completed')
+    ),
+    'email_scraper', json_build_object(
+      'total', (SELECT COUNT(*) FROM email_scraper_node WHERE automation_id = p_automation_id),
+      'pending', (SELECT COUNT(*) FROM email_scraper_node WHERE automation_id = p_automation_id AND status != 'auto_final_completed')
+    )
+  ) INTO result;
+  RETURN result;
+END;
+$$;
+
+
+-- =============================================================================
+-- 7. get_automation_analytics RPC
+-- Returns email scraping stats for a completed automation run.
+-- Usage: select get_automation_analytics(p_automation_id);
+-- =============================================================================
+CREATE OR REPLACE FUNCTION get_automation_analytics(p_automation_id BIGINT)
+RETURNS JSON
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  result JSON;
+BEGIN
+  SELECT json_build_object(
+    'total_rows', COUNT(*),
+    'has_email_rows', COUNT(*) FILTER (WHERE array_length(emails, 1) > 0),
+    'no_email_rows', COUNT(*) FILTER (WHERE emails IS NULL OR array_length(emails, 1) IS NULL),
+    'outscraper_with_email', COUNT(*) FILTER (WHERE array_length(emails, 1) > 0 AND scrape_type = 'outscraper'),
+    'browser_rendering_with_email', COUNT(*) FILTER (WHERE array_length(emails, 1) > 0 AND scrape_type = 'browser_rendering'),
+    'google_search_with_email', COUNT(*) FILTER (WHERE array_length(emails, 1) > 0 AND scrape_type = 'google_search'),
+    'http_request_with_email', COUNT(*) FILTER (WHERE array_length(emails, 1) > 0 AND scrape_type = 'http_request')
+  ) INTO result
+  FROM email_scraper_node
+  WHERE automation_id = p_automation_id;
+  RETURN result;
+END;
+$$;
 

@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { client_tag, batch_size } = body;
+    const { client_tag, batch_size, dedup_mode } = body;
 
     if (!client_tag || batch_size == null) {
       return NextResponse.json(
@@ -26,6 +26,11 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const validDedupModes = ["no_need", "global", "client_tag"] as const;
+    type DedupMode = (typeof validDedupModes)[number];
+    const dedupMode: DedupMode =
+      validDedupModes.includes(dedup_mode) ? dedup_mode : "global";
 
     // 1. Create automation_logs row
     const { data: logRow, error: insertError } = await supabaseAdmin
@@ -54,6 +59,7 @@ export async function POST(request: Request) {
         p_batch_size: pBatchSize,
         p_client_tag: String(client_tag).trim(),
         p_automation_id: automationId,
+        p_dedup_mode: dedupMode,
       }
     );
 
